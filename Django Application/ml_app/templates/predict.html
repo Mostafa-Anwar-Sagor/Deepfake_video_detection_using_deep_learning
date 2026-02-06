@@ -1,47 +1,147 @@
 {% extends 'base.html' %}
 {% load static %}
 {%block content%}
+<style>
+  .result-card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    margin: 30px auto;
+    max-width: 900px;
+  }
+  .result-badge {
+    display: inline-block;
+    padding: 15px 30px;
+    border-radius: 50px;
+    font-size: 24px;
+    font-weight: bold;
+    margin: 20px 0;
+  }
+  .badge-real {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: white;
+    box-shadow: 0 10px 30px rgba(56,239,125,0.3);
+  }
+  .badge-fake {
+    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    color: white;
+    box-shadow: 0 10px 30px rgba(244,92,67,0.3);
+  }
+  .analysis-section {
+    background: #f8f9ff;
+    border-radius: 15px;
+    padding: 25px;
+    margin: 20px 0;
+  }
+  .section-title {
+    color: #667eea;
+    font-weight: bold;
+    font-size: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+</style>
+
 {%if no_faces%}
-<div class="container">
-  <div class="logo text-center mb-3"><img src="{% static 'images/logo1.png'%}" alt="Logo" ></div>
-  <hr />
-  <div class="alert alert-danger">
-    No faces detected. Cannot process the video.
+<div class="bg" style="min-height: 100vh; display: flex; align-items: center;">
+  <div class="container">
+    <div class="result-card text-center">
+      <i class="fas fa-user-times" style="font-size: 80px; color: #f45c43; margin-bottom: 20px;"></i>
+      <h2 style="color: #333; margin-bottom: 20px;">No Faces Detected</h2>
+      <div class="alert alert-danger" style="border-radius: 10px;">
+        <i class="fas fa-exclamation-triangle"></i> Cannot process the video. Please upload a video with visible faces.
+      </div>
+      <a href="/" class="btn btn-primary mt-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 12px 30px; border-radius: 10px;">
+        <i class="fas fa-arrow-left"></i> Try Another Video
+      </a>
+    </div>
   </div>
 </div>
 {%else%}
-<div class="container">
-  <div class="logo text-center mb-3"><img src="{% static 'images/logo1.png'%}" alt="Logo" ></div>
-  <hr />
+<div class="bg" style="min-height: 100vh; padding: 40px 0;">
+  <div class="container">
+    <div class="text-center mb-4">
+      <h1 class="display-4 text-white font-weight-bold" style="text-shadow: 2px 2px 10px rgba(0,0,0,0.3);">
+        <i class="fas fa-chart-line"></i> Analysis Results
+      </h1>
+    </div>
+    
+    <div class="result-card">
+      <!-- Main Result -->
+      <div class="text-center mb-4">
+        <h3 style="color: #333; margin-bottom: 20px;">
+          <i class="fas fa-video"></i> Video Analysis Complete
+        </h3>
+        <video height="400" width="100%" id="predict-media" controls style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+          <source src="{{MEDIA_URL}}{{original_video}}" type="video/mp4" codecs="avc1.4d002a" />
+        </video>
+        
+        <div class="mt-4">
+          {%if output == "REAL" %}
+            <div class="result-badge badge-real">
+              <i class="fas fa-check-circle"></i> AUTHENTIC VIDEO
+            </div>
+            <p style="color: #666; margin-top: 15px; font-size: 16px;">
+              Our AI detected no signs of manipulation
+            </p>
+          {%else%}
+            <div class="result-badge badge-fake">
+              <i class="fas fa-exclamation-triangle"></i> DEEPFAKE DETECTED
+            </div>
+            <p style="color: #666; margin-top: 15px; font-size: 16px;">
+              Our AI detected signs of digital manipulation
+            </p>
+          {%endif%}
+          
+          <div class="mt-3">
+            <span style="font-size: 18px; color: #667eea; font-weight: bold;">
+              Confidence: {{confidence}}%
+            </span>
+          </div>
+        </div>
+      </div>
 
-  <h3>Frames Split</h3>
-  <div id="preprocessed_images" class="col-12 mt-4 mb-2">
-    {% for each_image in preprocessed_images %}
-    <img src="{%static each_image%}" class="preprocess" width=auto height="250" />
-    {%endfor%}
+      <!-- Frame Analysis Section -->
+      <div class="analysis-section">
+        <div class="section-title">
+          <i class="fas fa-images"></i> Analyzed Frames
+        </div>
+        <div id="preprocessed_images" style="white-space: nowrap; overflow-x: auto; padding: 10px;">
+          {% for each_image in preprocessed_images %}
+          <img src="{%static each_image%}" class="preprocess" width="auto" height="200" style="margin-right: 15px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);" />
+          {%endfor%}
+        </div>
+      </div>
+
+      <!-- Face Detection Section -->
+      <div class="analysis-section">
+        <div class="section-title">
+          <i class="fas fa-user-circle"></i> Detected Faces
+        </div>
+        <div id="faces_images" style="white-space: nowrap; overflow-x: auto; padding: 10px;">
+          {% for each_image in faces_cropped_images %}
+          <img src="{%static each_image%}" class="faces" width="auto" height="120" style="margin-right: 15px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);" />
+          {%endfor%}
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="text-center mt-4">
+        <a href="/" class="btn btn-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; border-radius: 10px; margin: 10px; box-shadow: 0 5px 15px rgba(102,126,234,0.4);">
+          <i class="fas fa-upload"></i> Analyze Another Video
+        </a>
+      </div>
+      
+      <div class="text-center mt-4" style="color: #999; font-size: 14px;">
+        <p><i class="fas fa-brain"></i> Analysis powered by Advanced AI & Deep Learning</p>
+        <p style="font-size: 12px;">Developed by <strong>Mostafa Anwar</strong></p>
+      </div>
+    </div>
   </div>
-
-
-  <h3>Face Cropped Frames</h3>
-  <div id="faces_images" class="col-12 mb-2">
-    {% for each_image in faces_cropped_images %}
-    <img src="{%static each_image%}" class="faces" width=auto height="150" />
-    {%endfor%}
-  </div>
-
-  <div class="result text-center">
-    <h3>Play to see Result</h3>
-    <video height="320" width="640" id="predict-media" controls>
-      <source src="{{MEDIA_URL}}{{original_video}}" type="video/mp4" codecs="avc1.4d002a" />
-    </video>
-    {%if output == "REAL" %}
-    <h4 class="mx-auto">Result: <span style="color:green">{{output}}</span>
-      <img src="{% static 'images/thumpup.png'%}" alt="real" height="100px" width=auto>
-      {%else%}
-      <h4 class="mx-auto">Result: <span style="color:red">{{output}}</span>
-        <img src="{% static 'images/thumpdown.png'%}" alt="fake" height="100px" width=auto >
-      {%endif%}
-  </div>
+</div>
 <!--
   <h3>Heat Maps</h3>
   <div id="heatmap_images" class="col-12 mb-4 ">

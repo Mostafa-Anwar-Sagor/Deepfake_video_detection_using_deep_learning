@@ -81,7 +81,9 @@ class validation_dataset(Dataset):
         first_frame = np.random.randint(0,a)
         for i,frame in enumerate(self.frame_extract(video_path)):
             #if(i % a == first_frame):
-            faces = face_recognition.face_locations(frame)
+            # Convert BGR to RGB for face_recognition
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            faces = face_recognition.face_locations(rgb_frame)
             try:
               top,right,bottom,left = faces[0]
               frame = frame[top:bottom,left:right,:]
@@ -311,26 +313,63 @@ def predict_page(request):
                 break
             frame = frames[i]
 
-            # Convert BGR to RGB
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Validate frame
+            if frame is None or frame.size == 0:
+                print(f"Skipping frame {i}: Invalid frame")
+                continue
 
-            # Save preprocessed image
+            # Ensure frame is in uint8 format and has 3 channels
+            if len(frame.shape) != 3 or frame.shape[2] != 3:
+                print(f"Skipping frame {i}: Invalid shape {frame.shape}")
+                continue
+
+            if frame.dtype != np.uint8:
+                frame = (frame * 255).astype(np.uint8) if frame.max() <= 1.0 else frame.astype(np.uint8)
+
+            # Convert BGR to RGB - create a proper copy
+            rgb_frame = cv2.cvtColor(frame.copy(), cv2.COLOR_BGR2RGB).copy()
+
+            # Save preprocessed image first
             image_name = f"{video_file_name_only}_preprocessed_{i+1}.png"
             image_path = os.path.join(settings.PROJECT_DIR, 'uploaded_images', image_name)
             img_rgb = pImage.fromarray(rgb_frame, 'RGB')
             img_rgb.save(image_path)
             preprocessed_images.append(image_name)
 
-            # Face detection and cropping
-            face_locations = face_recognition.face_locations(rgb_frame)
+            # Face detection - reload image from disk to ensure proper format
+            try:
+                # Load the saved image to ensure proper format
+                img_for_detection = pImage.open(image_path)
+                img_array = np.array(img_for_detection)
+                
+                face_locations = face_recognition.face_locations(img_array)
+            except Exception as e:
+                print(f"Error detecting faces in frame {i}: {e}")
+                print(f"Frame shape: {rgb_frame.shape}, dtype: {rgb_frame.dtype}")
+                continue
+                
             if len(face_locations) == 0:
                 continue
 
             top, right, bottom, left = face_locations[0]
-            frame_face = frame[top - padding:bottom + padding, left - padding:right + padding]
+            
+            # Ensure cropping coordinates are valid
+            height, width = frame.shape[:2]
+            top = max(0, top - padding)
+            left = max(0, left - padding)
+            bottom = min(height, bottom + padding)
+            right = min(width, right + padding)
+            
+            frame_face = frame[top:bottom, left:right]
+            
+            # Validate cropped face
+            if frame_face.size == 0 or frame_face.shape[0] == 0 or frame_face.shape[1] == 0:
+                print(f"Skipping frame {i}: Invalid face crop")
+                continue
 
             # Convert cropped face image to RGB and save
             rgb_face = cv2.cvtColor(frame_face, cv2.COLOR_BGR2RGB)
+            rgb_face = np.ascontiguousarray(rgb_face, dtype=np.uint8)
             img_face_rgb = pImage.fromarray(rgb_face, 'RGB')
             image_name = f"{video_file_name_only}_cropped_faces_{i+1}.png"
             image_path = os.path.join(settings.PROJECT_DIR, 'uploaded_images', image_name)
@@ -343,7 +382,7 @@ def predict_page(request):
 
         # No face detected
         if faces_found == 0:
-            return render(request, 'predict_template_name.html', {"no_faces": True})
+            return render(request, predict_template_name, {"no_faces": True})
 
         # Perform prediction
         try:
