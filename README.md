@@ -83,7 +83,7 @@ This project aims to detect video deepfakes using state-of-the-art deep learning
 ### Application Interface
 
 <div align="center">
-  <img src="github_assets/fakegif.gif" alt="Deepfake Detection Demo" width="80%">
+  <img src="github_assets/fake.gif" alt="Deepfake Detection Demo" width="80%">
   <p><i>Real-time video deepfake detection in action</i></p>
 </div>
 
